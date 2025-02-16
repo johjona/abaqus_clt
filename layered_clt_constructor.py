@@ -20,20 +20,23 @@ import xyPlot
 import displayGroupOdbToolset as dgo
 import connectorBehavior
 
-def createPart(part_name, element_width, element_height, longitudinal_length, transversal_length, orientation, part_names):
+def createPart(part_name, element_width, element_height, longitudinal_length, transversal_length, orientation, part_names, elements, spatial_width):
 
     partInstances = []
 
-    # part_name = 'Part-%s'%layer_count
 
     if orientation == "T":
         
-        elements = int(longitudinal_length/element_width)
-        longitudinal_length = transversal_length 
+        elements_temp = transversal_length/element_width
+        length = transversal_length
 
     else:
 
         elements = int(transversal_length/element_width)
+        elements_temp = longitudinal_length/element_width
+        length = longitudinal_length
+
+    print(elements_temp)
 
     s = mdb.models[model].ConstrainedSketch(name='__profile__', 
     sheetSize=10.0)
@@ -50,10 +53,11 @@ def createPart(part_name, element_width, element_height, longitudinal_length, tr
     s.Line(point1=(element_width/2, element_height/2), point2=(-element_width/2, element_height/2))
     s.Line(point1=(-element_width/2, element_height/2), point2=(-element_width/2, -element_height/2))
 
+
     p = mdb.models[model].Part(name=part_name, dimensionality=THREE_D, 
     type=DEFORMABLE_BODY)
     p = mdb.models[model].parts[part_name]
-    p.BaseSolidExtrude(sketch=s, depth=longitudinal_length)#+ (num_width_elem-1)*spatial_width)
+    p.BaseSolidExtrude(sketch=s, depth=length + (elements_temp-1)*spatial_width)
     s.unsetPrimaryObject()
     
     a1 = mdb.models[model].rootAssembly
@@ -67,7 +71,7 @@ def createPart(part_name, element_width, element_height, longitudinal_length, tr
         p1 = a1.instances['Part-%s'%layer_count + '-%s'%k]
 
          
-        spatial_width_temp = 0.0
+        spatial_width_temp = spatial_width
 
         if orientation == "L":
             
@@ -80,10 +84,9 @@ def createPart(part_name, element_width, element_height, longitudinal_length, tr
                  axisDirection=(0.0, element_height, 0.0), angle=90.0)
             
     for k in range(elements):
-        print("Part-%s-%s"%(layer_count, k), "hej")
+
         partInstances.append(a1.instances["Part-%s-%s"%(layer_count, k)])
 
-    print(tuple(partInstances))
 
     new_part_name = 'Part-%s%s'%(layer_count,layer_count)
 
@@ -120,7 +123,7 @@ def createAndAssignMaterial(part_name, material_name, orientation):
         additionalRotationField='', angle=rot_angle, stackDirection=STACK_3)
         
   
-def createSurfaces(part_name, orientation, y_coord, element_height, element_width, elements):
+def createSurfaces(part_name, orientation, y_coord, element_height, element_width, elements, spatial_width):
 
 ## -------------- Create top- and bottom surfaces ---------- ##
 
@@ -128,18 +131,18 @@ def createSurfaces(part_name, orientation, y_coord, element_height, element_widt
     all_surfs_bot = []     
 
     a = mdb.models[model].rootAssembly
-
-    print(elements)
     
     for k in range(int(elements)):
 
+        print(elements)
+
         if orientation == "T":
-            coord_top = (0.55, y_coord + element_height/2 ,1.93 - k*element_width)
-            coord_bot = (0.55, y_coord - element_height/2 ,1.93 - k*element_width)
+            coord_top = (0.55, y_coord + element_height/2 ,1.93 - k*element_width + (k-1)*spatial_width)
+            coord_bot = (0.55, y_coord - element_height/2 ,1.93 - k*element_width + (k-1)*spatial_width)
 
         else:
-            coord_top = (-0.03 + k*element_width, y_coord + element_height/2,1.3333)
-            coord_bot = (-0.03 + k*element_width, y_coord - element_height/2,1.3333)
+            coord_top = (-0.03 + k*element_width + (k-1)*spatial_width, y_coord + element_height/2,1.3333)
+            coord_bot = (-0.03 + k*element_width + (k-1)*spatial_width, y_coord - element_height/2,1.3333)
 
         s = a.instances[part_name + "%s-"%layer_count + str(1)].faces
         side1Faces = s.findAt(((coord_top),))
@@ -202,9 +205,20 @@ def createConstrains(LayerDict):
             mdb.models[model].Tie(name='Constraint-%s'%i, main=region1, secondary=region2, 
                 positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, 
                 thickness=ON)
+            
 
+###############################################################   
+###############################################################   
+### ------------------------------------------------------- ###
+### ------------------------------------------------------- ###
+### ------------------------------------------------------- ###
+### --------------- PRE STUFF STARTS HERE ----------------- ###
+### ------------------------------------------------------  ###
+### ------------------------------------------------------- ###
+### ------------------------------------------------------- ###
+###############################################################
+###############################################################
         
-
 ### --------------------- New MDB --------------------------------- ###
  
 model = "Model-1"
@@ -213,6 +227,7 @@ job_counter = 0
 material_list = ["C14", "C24", "C30", "C40", "C50"]
 
 ##---------------------------Material Library---------------------------##
+
 MaterialDict = {}
 MaterialDict["C14"]=(7000e6, 230e6, 230e6, 0.48, 0.42, 0.28, 440e6, 440e6, 40e6, 350)
 MaterialDict["C24"]=(11000e6, 370e6, 370e6, 0.48, 0.42, 0.28, 690e6, 690e6, 49e6, 420)
@@ -252,23 +267,36 @@ LayerDict["layer2"] = (0.02, "L", "C24")
 LayerDict["layer3"] = (0.02, "T", "C14")
 LayerDict["layer4"] = (0.03, "L", "C24")
 
-longitudinal_length = 2  # Needs to be multiple of element_width
-transversal_length = 1      # 'Part-%s%s'%(layer_count,layer_count)
-nbr_of_layers = len(LayerDict)
+spatial_width = 0.005 # gap between lamellas (not working atm
+element_width = 0.2 # width of individual lamellas
 
-### -------------------- Mesh Input parameters --------------------- ###
+longitudinal_length_i = 4  # total length of plate - needs to be a multiple of element_width
+transversal_length_i = 2   # total width of plate - also needs to be a multiple of element_width
 
-seed_size = 0.05
+###############################################################   
+###############################################################   
+### ------------------------------------------------------- ###
+### ------------------------------------------------------- ###
+### ------------------------------------------------------- ###
+### --------------- MAIN CODE STARTS HERE ----------------- ###
+### ------------------------------------------------------  ###
+### ------------------------------------------------------- ###
+### ------------------------------------------------------- ###
+###############################################################
+###############################################################
 
 ### -------------------- Create model ------------------------------ ###
+
+longitudinal_length = longitudinal_length_i
+transversal_length = transversal_length_i 
+
+nbr_of_layers = len(LayerDict)
 
 part_names = []
 
 y_coord = 0
 
 job_name = 'Job-1'
-
-element_width = 0.2
 
 for layer_count in range(len(LayerDict)):
     
@@ -282,11 +310,11 @@ for layer_count in range(len(LayerDict)):
     
     if orientation == "T":
         
-        elements = int(longitudinal_length/element_width)
+        elements = int(longitudinal_length_i/element_width)
 
     else:
 
-        elements = int(transversal_length/element_width)
+        elements = int(transversal_length_i/element_width)
 
     part_name = 'Part-%s-'%layer_count
 
@@ -299,7 +327,7 @@ for layer_count in range(len(LayerDict)):
 
     ## ------------- Part -------------- ##
     
-    name_list = createPart(part_name, element_width, element_height, longitudinal_length, transversal_length, orientation, part_names)        
+    part_names = createPart(part_name, element_width, element_height, longitudinal_length, transversal_length, orientation, part_names, elements, spatial_width)        
 
     ## ------------- Material -------------- ## 
     
@@ -307,7 +335,7 @@ for layer_count in range(len(LayerDict)):
     
     # ## ------------- Surfaces -------------- ##
     
-    createSurfaces(part_name, orientation, y_coord, element_height, element_width, elements)
+    createSurfaces(part_name, orientation, y_coord, element_height, element_width, elements, spatial_width)
    
     ## ------------- Update coordinate -------------- ##
     
