@@ -20,7 +20,7 @@ import xyPlot
 import displayGroupOdbToolset as dgo
 import connectorBehavior
 
-def createPart(part_name, element_width, element_height, longitudinal_length, transversal_length, orientation, part_names, elements, spatial_width):
+def createPart(part_name, element_width, element_height, longitudinal_length, transversal_length, orientation, part_names, elements, spatial_width, method):
 
     partInstances = []
 
@@ -87,40 +87,50 @@ def createPart(part_name, element_width, element_height, longitudinal_length, tr
 
         partInstances.append(a1.instances["Part-%s-%s"%(layer_count, k)])
 
+    if method == "merge":
 
-    new_part_name = 'Part-%s%s'%(layer_count,layer_count)
+        new_part_name = 'Part-%s%s'%(layer_count,layer_count)
 
-    a1.InstanceFromBooleanMerge(name=new_part_name, instances=tuple(partInstances), 
-    keepIntersections=ON, originalInstances=DELETE, domain=GEOMETRY)
-    part_names.append(new_part_name)
+        a1.InstanceFromBooleanMerge(name=new_part_name, instances=tuple(partInstances), 
+        keepIntersections=ON, originalInstances=SUPPRESS, domain=GEOMETRY)
+        part_names.append(new_part_name)
+
+    elif method == "individ":
+    
+        for k in range(elements):
+            part_names.append('Part-%s-%s'%(layer_count, k))
 
     return part_names 
             
     
-def createAndAssignMaterial(part_name, material_name, orientation):
+def createAndAssignMaterial(part_name, material_name, orientation, elements):
 
     if orientation == "T":
         rot_angle = 0.0
     else:
         rot_angle = 90.0
 
-    p = mdb.models[model].parts[part_name]
-    c = p.cells
-    cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
-    region = p.Set(cells=cells, name='Material-Set-%s'%layer_count)
-    p = mdb.models[model].parts[part_name]
-    p.SectionAssignment(region=region, sectionName=(material_name + '_section'), offset=0.0, 
-        offsetType=MIDDLE_SURFACE, offsetField='', 
-        thicknessAssignment=FROM_SECTION)
-   
-    p = mdb.models['Model-1'].parts[part_name]
-    c = p.cells
-    cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
-    region = regionToolset.Region(cells=cells)
-    mdb.models['Model-1'].parts[part_name].MaterialOrientation(region=region, 
-        orientationType=SYSTEM, axis=AXIS_2, localCsys=None, 
-        fieldName='', additionalRotationType=ROTATION_ANGLE, 
-        additionalRotationField='', angle=rot_angle, stackDirection=STACK_3)
+    for k in range(elements):
+
+        part_name = part_name
+
+        p = mdb.models[model].parts[part_name]
+        c = p.cells
+        cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
+        region = p.Set(cells=cells, name='Material-Set-%s'%layer_count)
+        p = mdb.models[model].parts[part_name]
+        p.SectionAssignment(region=region, sectionName=(material_name + '_section'), offset=0.0, 
+            offsetType=MIDDLE_SURFACE, offsetField='', 
+            thicknessAssignment=FROM_SECTION)
+
+        p = mdb.models['Model-1'].parts[part_name]
+        c = p.cells
+        cells = c.getSequenceFromMask(mask=('[#1 ]', ), )
+        region = regionToolset.Region(cells=cells)
+        mdb.models['Model-1'].parts[part_name].MaterialOrientation(region=region, 
+            orientationType=SYSTEM, axis=AXIS_2, localCsys=None, 
+            fieldName='', additionalRotationType=ROTATION_ANGLE, 
+            additionalRotationField='', angle=rot_angle, stackDirection=STACK_3)
         
   
 def createSurfaces(part_name, orientation, y_coord, element_height, element_width, elements, spatial_width):
@@ -133,28 +143,68 @@ def createSurfaces(part_name, orientation, y_coord, element_height, element_widt
     a = mdb.models[model].rootAssembly
     
     for k in range(int(elements)):
+        
+        if method == "merge":
+            merge_name = "-1"
+            i = 0
+        else:
+            merge_name = ""
+            i = k
 
-        print(elements)
+        part_name = part_names[i] + merge_name
 
         if orientation == "T":
-            coord_top = (0.55, y_coord + element_height/2 ,1.93 - k*element_width + (k-1)*spatial_width)
-            coord_bot = (0.55, y_coord - element_height/2 ,1.93 - k*element_width + (k-1)*spatial_width)
+            coord_top = (0.2, y_coord + element_height/2 , 0.1 + k*element_width + (k-1)*spatial_width)
+            coord_bot = (0.2, y_coord - element_height/2 , 0.1 + k*element_width + (k-1)*spatial_width)
+
+            s = a.instances[part_name].faces
+
+            sideFaces = s.findAt(((element_width/2, y_coord, element_width + (k)*element_width + k*spatial_width) ,))
+            region1=a.Surface(side1Faces=sideFaces, name='side_m_Surf-%s'%(part_name))
+
+            sideFaces = s.findAt(((element_width/2, y_coord, 0 + (k)*element_width + (k)*spatial_width) ,))
+            region2=a.Surface(side1Faces=sideFaces, name='side_s_Surf-%s'%(part_name))
 
         else:
-            coord_top = (-0.03 + k*element_width + (k-1)*spatial_width, y_coord + element_height/2,1.3333)
-            coord_bot = (-0.03 + k*element_width + (k-1)*spatial_width, y_coord - element_height/2,1.3333)
+            coord_top = (-0.05 + k*element_width + (k-1)*spatial_width, y_coord + element_height/2,0.95)
+            coord_bot = (-0.05 + k*element_width + (k-1)*spatial_width, y_coord - element_height/2,0.95)
 
-        s = a.instances[part_name + "%s-"%layer_count + str(1)].faces
+            s = a.instances[part_name].faces
+
+            sideFaces = s.findAt(((element_width/2 + (k)*element_width + (k)*spatial_width , y_coord, 2.) ,))
+            region1=a.Surface(side1Faces=sideFaces, name='side_m_Surf-%s'%(part_name))
+
+            sideFaces = s.findAt(((-element_width/2 + (k)*element_width + (k)*spatial_width , y_coord, 2.) ,))
+            region2=a.Surface(side1Faces=sideFaces, name='side_s_Surf-%s'%(part_name)) 
+
+        # s = a.instances[part_name + "%s-"%layer_count + str(1)].faces
+        s = a.instances[part_name].faces
         side1Faces = s.findAt(((coord_top),))
         all_surfs.append(side1Faces)
 
-        s = a.instances[part_name + "%s-"%layer_count + str(1)].faces
+
+        # s = a.instances[part_name + "%s-"%layer_count + str(1)].faces
+        s = a.instances[part_name].faces
         side1Faces = s.findAt(((coord_bot),))
         all_surfs_bot.append(side1Faces)
 
     a.Surface(side1Faces=all_surfs, name = 'Top_%s'%layer_count) 
     a.Surface(side1Faces=all_surfs_bot, name = 'Bot_%s'%layer_count) 
-    
+
+def createHorisontalConstraints(part_names, orientation, elements, layer_count):
+
+    a = mdb.models[model].rootAssembly
+
+    for k in range(elements - 1):
+
+
+        region1 = a.surfaces['side_m_Surf-Part-%s-%s'%(layer_count, k)]
+        region2 = a.surfaces['side_s_Surf-Part-%s-%s'%(layer_count, k + 1)]
+
+        mdb.models['Model-1'].Tie(name='Constraint-%s-%s'%(layer_count, k), main=region1, secondary=region2, 
+            positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, 
+            thickness=ON)
+        
     
 def createMesh(part_name, seed_size):
 
@@ -193,6 +243,7 @@ def createMesh(part_name, seed_size):
 def createConstrains(LayerDict):
 
 # -------------------- Create constrains ------------------------- #
+
     a = mdb.models[model].rootAssembly
     
     for i in range(len(LayerDict)):
@@ -206,6 +257,9 @@ def createConstrains(LayerDict):
                 positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, 
                 thickness=ON)
             
+            
+
+   
 
 ###############################################################   
 ###############################################################   
@@ -270,8 +324,10 @@ LayerDict["layer4"] = (0.03, "L", "C24")
 spatial_width = 0.005 # gap between lamellas (not working atm
 element_width = 0.2 # width of individual lamellas
 
-longitudinal_length_i = 4  # total length of plate - needs to be a multiple of element_width
-transversal_length_i = 2   # total width of plate - also needs to be a multiple of element_width
+longitudinal_length_i = 2  # total length of plate - needs to be a multiple of element_width
+transversal_length_i = 0.4 # total width of plate - also needs to be a multiple of element_width
+
+method = "individ" # "merge" or "individ"
 
 ###############################################################   
 ###############################################################   
@@ -292,13 +348,13 @@ transversal_length = transversal_length_i
 
 nbr_of_layers = len(LayerDict)
 
-part_names = []
-
 y_coord = 0
 
 job_name = 'Job-1'
 
 for layer_count in range(len(LayerDict)):
+
+    part_names = []
     
     layer_name = "layer%s"%layer_count
 
@@ -327,15 +383,17 @@ for layer_count in range(len(LayerDict)):
 
     ## ------------- Part -------------- ##
     
-    part_names = createPart(part_name, element_width, element_height, longitudinal_length, transversal_length, orientation, part_names, elements, spatial_width)        
+    part_names = createPart(part_name, element_width, element_height, longitudinal_length, transversal_length, orientation, part_names, elements, spatial_width, method)        
 
     ## ------------- Material -------------- ## 
     
-    createAndAssignMaterial(part_names[layer_count], material_name, orientation)
+    createAndAssignMaterial(part_name, material_name, orientation, elements)
     
     # ## ------------- Surfaces -------------- ##
     
-    createSurfaces(part_name, orientation, y_coord, element_height, element_width, elements, spatial_width)
+    createSurfaces(part_names, orientation, y_coord, element_height, element_width, elements, spatial_width)
+
+    createHorisontalConstraints(part_names, orientation, elements, layer_count)
    
     ## ------------- Update coordinate -------------- ##
     
@@ -346,6 +404,9 @@ for layer_count in range(len(LayerDict)):
 # -------------- Create Constrains ----------------- ## 
 
 createConstrains(LayerDict)
+
+
+
 
     
 
