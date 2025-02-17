@@ -321,13 +321,12 @@ LayerDict["layer2"] = (0.02, "L", "C24")
 LayerDict["layer3"] = (0.02, "T", "C14")
 LayerDict["layer4"] = (0.03, "L", "C24")
 
-spatial_width = 0.0 # gap between lamellas (not working atm
+spatial_width = 0.005 # gap between lamellas (not working atm
 element_width = 0.2 # width of individual lamellas
 
-longitudinal_length_i = 4 # total length of plate - needs to be a multiple of element_width
-transversal_length_i = 1 # total width of plate - also needs to be a multiple of element_width
-
-method = "merge" # "merge" or "individ"
+longitudinal_length_i = 4 # total length of plate excluding spatial gaps
+transversal_length_i = 1 # total width of plate excluding spatial gaps
+method = "individ" # "merge" or "individ"
 
 ###############################################################   
 ###############################################################   
