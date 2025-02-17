@@ -321,13 +321,13 @@ LayerDict["layer2"] = (0.02, "L", "C24")
 LayerDict["layer3"] = (0.02, "T", "C14")
 LayerDict["layer4"] = (0.03, "L", "C24")
 
-spatial_width = 0.005 # gap between lamellas (not working atm
+spatial_width = 0.0 # gap between lamellas (not working atm
 element_width = 0.2 # width of individual lamellas
 
-longitudinal_length_i = 2  # total length of plate - needs to be a multiple of element_width
-transversal_length_i = 0.4 # total width of plate - also needs to be a multiple of element_width
+longitudinal_length_i = 4 # total length of plate - needs to be a multiple of element_width
+transversal_length_i = 1 # total width of plate - also needs to be a multiple of element_width
 
-method = "individ" # "merge" or "individ"
+method = "merge" # "merge" or "individ"
 
 ###############################################################   
 ###############################################################   
@@ -393,7 +393,9 @@ for layer_count in range(len(LayerDict)):
     
     createSurfaces(part_names, orientation, y_coord, element_height, element_width, elements, spatial_width)
 
-    createHorisontalConstraints(part_names, orientation, elements, layer_count)
+    if method == "individ":
+
+        createHorisontalConstraints(part_names, orientation, elements, layer_count)
    
     ## ------------- Update coordinate -------------- ##
     
